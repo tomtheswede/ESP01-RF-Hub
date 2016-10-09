@@ -1,3 +1,9 @@
+/*  
+ *   For logging incomming RF signals
+ *   Code by Thomas Friberg (https://github.com/tomtheswede)
+ *   Updated 9/10/2016
+ */
+
 // Import ESP8266 libraries
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
@@ -88,7 +94,7 @@ void loop() {
       //Serial.print("store"); //This needs to be removed for correct timing
       storeNum++;
       if (storeNum==20) {
-        pingCount=13;
+        pingCount=14;
       }
     }
     if (pingCount==14 && record) { //end message and dump command
@@ -107,7 +113,7 @@ void loop() {
   if (checkOut && storeNum>2) {
     addString="";
     for (int i=1; i<storeNum-1; i++) {
-      if (pingBuf[i]<=14) {
+      if (pingBuf[i]<=15) {
         addString=addString+out[pingBuf[i]-1];
       }
     }
