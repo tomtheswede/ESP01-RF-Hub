@@ -15,7 +15,7 @@ long ms3;
 int readPin = 2;
 int pingCount = 0;
 int storeNum = 0;
-String out[14] = {",","1","2","3","4","5","6","7","8","9","0",".","e","s"};
+String out[15] = {",","1","2","3","4","5","6","7","8","9","0",".","f","e","s"};
 bool record=false;
 bool checkOut=false;
 String addString="";
@@ -53,8 +53,8 @@ void setup() {
 
   delay(2000); //Time clearance to ensure registration
   SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
-  delay(2000); //Time clearance to ensure registration
-  SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
+  //delay(2000); //Time clearance to ensure registration
+  //SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
 }
 
 void loop() {
@@ -72,14 +72,14 @@ void loop() {
     ms1=micros();
     pingCount++;
   }
-  if (pingCount>14) {
+  if (pingCount>15) {
     //Serial.println("pingCount Buffer exceeded");
     pingCount=0;
   }
   //1300 works well
   if (micros()-ms1>1600 && pingCount>0) { //between 270 and 400 works - 350 is good
     //Serial.println(pingCount); //This needs to be removed for correct timing
-    if (pingCount==14 && not(record)) { //Start message
+    if (pingCount==15 && not(record)) { //Start message
       //Serial.println("Start message"); //This needs to be removed for correct timing
       record=true;
     }
@@ -91,7 +91,7 @@ void loop() {
         pingCount=13;
       }
     }
-    if (pingCount==13 && record) { //end message and dump command
+    if (pingCount==14 && record) { //end message and dump command
       //Serial.println("Stop record"); //This needs to be removed for correct timing
       record=false;
       checkOut=true;
@@ -106,7 +106,7 @@ void loop() {
 
   if (checkOut && storeNum>2) {
     addString="";
-    for (int i=0; i<storeNum; i++) {
+    for (int i=1; i<storeNum-1; i++) {
       if (pingBuf[i]<=14) {
         addString=addString+out[pingBuf[i]-1];
       }
