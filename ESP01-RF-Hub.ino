@@ -4,7 +4,8 @@
 
 const char* sensorID1 = "BUT008"; //Name of sensor
 const char* sensorID2 = "BUT009"; //Name of sensor
-const char* deviceDescription = "TestButton2";
+const char* deviceDescription1 = "RadioButton1";
+const char* deviceDescription2 = "RadioButton2";
 
 byte niblett[4];
 int nibNum;
@@ -55,9 +56,8 @@ void setup() {
   Serial.println(localPort);
 
   delay(2000); //Time clearance to ensure registration
-  SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
-  //delay(2000); //Time clearance to ensure registration
-  //SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
+  SendUdpValue("REG",sensorID1,String(deviceDescription1)); //Register LED on server
+  SendUdpValue("REG",sensorID2,String(deviceDescription2)); //Register LED on server
   
   attachInterrupt(digitalPinToInterrupt(readPin),changeInterrupt,CHANGE); //Comment out to remove button functionality
 }
