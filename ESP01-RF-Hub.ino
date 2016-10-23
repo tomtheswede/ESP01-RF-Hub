@@ -2,27 +2,29 @@
 #include <ESP8266WiFi.h>
 #include <WiFiUdp.h>
 
-const char* sensorID1 = "BUT007"; //Name of sensor
-const char* deviceDescription = "TestButton";
+const char* sensorID1 = "BUT008"; //Name of sensor
+const char* deviceDescription = "TestButton2";
 
-byte buf[8] = {0,0,0,0,0,0,0,0};
-int pingBuf[100];
-long lastRead=0;
-long preRead=0;
-long ms1;
-long ms2;
-long ms3;
-int readPin = 2;
+byte niblett[4];
+int nibNum;
+bool riseFlag=false;
+bool fallFlag=false;
+long msRise=0;
+long msFall=0;
+long fallLen=0;
+long riseLen=0;
+long startTime=0;
+int readPin = 14;
+int readState=0;
 int pingCount = 0;
 int storeNum = 0;
-String out[15] = {",","1","2","3","4","5","6","7","8","9","0",".","f","e","s"};
+String out[16] = {"0","1","2","3","4","5","6","7","8","9",".",",","e","p","f","s"};
 bool record=false;
-bool checkOut=false;
 String addString="";
 
 // WiFi parameters
-const char* ssid = ""; //Enter your WiFi network name here in the quotation marks
-const char* password = ""; //Enter your WiFi pasword here in the quotation marks
+const char* ssid = "TheSubway"; //Enter your WiFi network name here in the quotation marks
+const char* password = "vanillamoon576"; //Enter your WiFi pasword here in the quotation marks
 
 //Server details
 unsigned int localPort = 5007;  //UDP send port
@@ -55,71 +57,81 @@ void setup() {
   SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
   //delay(2000); //Time clearance to ensure registration
   //SendUdpValue("REG",sensorID1,String(deviceDescription)); //Register LED on server
+  
+  attachInterrupt(digitalPinToInterrupt(readPin),changeInterrupt,CHANGE); //Comment out to remove button functionality
 }
 
 void loop() {
-  preRead=micros();
-  if (micros()-lastRead>20) { //sets a minimum re-trigger time for the check of - this if statement and loop takes 3 microseconds
-    // update buffer with 8 most recent values
-    for (int i=0; i<7; i++) {
-      buf[i]=buf[i+1];
+  if ((riseFlag || fallFlag) && (riseLen<150 || fallLen<150 || riseLen>2000 || fallLen>2000)) { //Noise filter
+    riseFlag=false;
+    fallFlag=false;
+  }
+  else if (riseFlag) {
+    riseFlag=false;
+    fallFlag=false;
+    if (riseLen>=150 && riseLen<500 && fallLen>=500 && fallLen<900) {
+      niblett[0]=niblett[1];
+      niblett[1]=niblett[2];
+      niblett[2]=niblett[3];
+      niblett[3]=0;
+      pingCount++;
     }
-    buf[7]=digitalRead(readPin);
-    lastRead=micros();
+    else if (riseLen>=500 && riseLen<900 && fallLen>=150 && fallLen<500) {
+      niblett[0]=niblett[1];
+      niblett[1]=niblett[2];
+      niblett[2]=niblett[3];
+      niblett[3]=1;
+      pingCount++;
+    }
+    else {
+      pingCount=0;
+    }
   }
-  //600 & 500 work well,
-  if (micros()-ms1>860 && buf[0]==0 && buf[1]==0 && buf[2]==0 && buf[3]==1 && buf[4]==1 && buf[5]==1 && buf[6]==1 && buf[7]==1) { //start timer for rise
-    ms1=micros();
-    pingCount++;
-  }
-  if (pingCount>15) {
-    //Serial.println("pingCount Buffer exceeded");
+
+  if (niblett[0]==1 && niblett[1]==1 && niblett[2]==1 && niblett[3]==1 && !record) {
+    record=true;
     pingCount=0;
+    startTime=millis();
   }
-  //1300 works well
-  if (micros()-ms1>1600 && pingCount>0) { //between 270 and 400 works - 350 is good
-    //Serial.println(pingCount); //This needs to be removed for correct timing
-    if (pingCount==15 && not(record)) { //Start message
-      //Serial.println("Start message"); //This needs to be removed for correct timing
-      record=true;
-    }
-    if (record) {
-      pingBuf[storeNum]=pingCount;
-      //Serial.print("store"); //This needs to be removed for correct timing
-      storeNum++;
-      if (storeNum==20) {
-        pingCount=14;
-      }
-    }
-    if (pingCount==14 && record) { //end message and dump command
-      //Serial.println("Stop record"); //This needs to be removed for correct timing
+  else if (pingCount==4 && record) {
+    if (niblett[0]==1 && niblett[1]==1 && niblett[2]==0 && niblett[3]==1 && addString.length()>0) { //end recording
+      checkOut(addString);
+      addString="";
       record=false;
-      checkOut=true;
+    }
+    else if (millis()-startTime>200) {
+      addString="";
+      record=false;
+    }
+    else {
+      nibNum=niblett[0]*8+niblett[1]*4+niblett[2]*2+niblett[3];
+      //Serial.println(nibNum);
+      addString=addString+out[nibNum];
     }
     pingCount=0;
-
-  }
-  
-  if (micros()-ms1>30000) {
-    ms1=micros();
   }
 
-  if (checkOut && storeNum>2) {
-    addString="";
-    for (int i=0; i<storeNum; i++) {
-      if (pingBuf[i]<=13) {
-        addString=addString+out[pingBuf[i]-1];
-      }
-    }
-    Serial.println(addString);
-    checkOut=false;
-    storeNum=0;
-    if (addString=="3,2") {
-      SendUdpValue("LOG",sensorID1,"toggle");
-    }
+}
+
+void changeInterrupt() { //What happens when the button pin changes value
+  if (digitalRead(readPin)) {
+    msRise=micros();
+    fallLen=msRise-msFall;
+    riseFlag=true;
   }
-    
+  else {
+    msFall=micros();
+    riseLen=msFall-msRise;
+    fallFlag=true;
+  }
   
+}
+
+void checkOut(String message) {
+  Serial.println(message);
+  if (message=="4,9") {
+    SendUdpValue("LOG",sensorID1,"press");
+  }
 }
 
 void SendUdpValue(String type, String sensorID, String value) {
