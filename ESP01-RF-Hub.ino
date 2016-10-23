@@ -3,6 +3,7 @@
 #include <WiFiUdp.h>
 
 const char* sensorID1 = "BUT008"; //Name of sensor
+const char* sensorID2 = "BUT009"; //Name of sensor
 const char* deviceDescription = "TestButton2";
 
 byte niblett[4];
@@ -14,7 +15,7 @@ long msFall=0;
 long fallLen=0;
 long riseLen=0;
 long startTime=0;
-int readPin = 14;
+int readPin = 2;
 int readState=0;
 int pingCount = 0;
 int storeNum = 0;
@@ -62,21 +63,22 @@ void setup() {
 }
 
 void loop() {
-  if ((riseFlag || fallFlag) && (riseLen<150 || fallLen<150 || riseLen>2000 || fallLen>2000)) { //Noise filter
+  if ((riseFlag || fallFlag) && (riseLen<200 || fallLen<200 || riseLen>=900 || fallLen>=900)) { //Noise filter
     riseFlag=false;
     fallFlag=false;
+    pingCount=0;
   }
   else if (riseFlag) {
     riseFlag=false;
     fallFlag=false;
-    if (riseLen>=150 && riseLen<500 && fallLen>=500 && fallLen<900) {
+    if (riseLen>=200 && riseLen<500 && fallLen>=500 && fallLen<900) {
       niblett[0]=niblett[1];
       niblett[1]=niblett[2];
       niblett[2]=niblett[3];
       niblett[3]=0;
       pingCount++;
     }
-    else if (riseLen>=500 && riseLen<900 && fallLen>=150 && fallLen<500) {
+    else if (riseLen>=500 && riseLen<900 && fallLen>=200 && fallLen<500) {
       niblett[0]=niblett[1];
       niblett[1]=niblett[2];
       niblett[2]=niblett[3];
@@ -110,7 +112,6 @@ void loop() {
     }
     pingCount=0;
   }
-
 }
 
 void changeInterrupt() { //What happens when the button pin changes value
@@ -140,6 +141,18 @@ void checkOut(String message) {
   }
   else if (message=="1,1,3,4") {
     SendUdpValue("LOG",sensorID1,"longestPress");
+  }
+  else if (message=="1,1,4,1") {
+    SendUdpValue("LOG",sensorID2,"press");
+  }
+  else if (message=="1,1,4,2") {
+    SendUdpValue("LOG",sensorID2,"longPress");
+  }
+  else if (message=="1,1,4,3") {
+    SendUdpValue("LOG",sensorID2,"longerPress");
+  }
+  else if (message=="1,1,4,4") {
+    SendUdpValue("LOG",sensorID2,"longestPress");
   }
 }
 
