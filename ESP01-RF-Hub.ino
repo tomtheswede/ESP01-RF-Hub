@@ -14,7 +14,7 @@ long msFall=0;
 long fallLen=0;
 long riseLen=0;
 long startTime=0;
-int readPin = 2;
+int readPin = 14;
 int readState=0;
 int pingCount = 0;
 int storeNum = 0;
@@ -129,8 +129,17 @@ void changeInterrupt() { //What happens when the button pin changes value
 
 void checkOut(String message) {
   Serial.println(message);
-  if (message=="4,9") {
+  if (message=="1,1,3,1") {
     SendUdpValue("LOG",sensorID1,"press");
+  }
+  else if (message=="1,1,3,2") {
+    SendUdpValue("LOG",sensorID1,"longPress");
+  }
+  else if (message=="1,1,3,3") {
+    SendUdpValue("LOG",sensorID1,"longerPress");
+  }
+  else if (message=="1,1,3,4") {
+    SendUdpValue("LOG",sensorID1,"longestPress");
   }
 }
 
