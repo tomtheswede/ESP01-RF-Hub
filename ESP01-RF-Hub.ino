@@ -99,7 +99,7 @@ void loop() {
     digitalWrite(indicatorPin,LOW);
   }
 
-  if (niblett[0]==0 && niblett[1]==1 && niblett[2]==1 && niblett[3]==1 && !record) {
+  if (niblett[0]==1 && niblett[1]==1 && niblett[2]==1 && niblett[3]==0 && !record) {
     record=true; //Start recording
     digitalWrite(indicatorPin,HIGH);
     pingCount=0;
@@ -107,6 +107,7 @@ void loop() {
     startTime=millis();
   }
   else if (pingCount==4 && record) {
+    if (niblett[0]==0 && niblett[1]==0 && niblett[2]==0 && niblett[3]==1 && addString.length()>0) { //end recording with parity bit
       //if ((highBits)%2) { //only even parity gets printed. Otherwise, in error
         addString=addString+out[nibNum];
         checkOut(addString);
@@ -187,11 +188,19 @@ void checkOut(String message) {
   }
   else if (message=="p6931") {
     SendUdpValue("LOG",sensorID1,"press");
-    delay(100);
+    delay(200);
   }
   else if (message=="p6933") {
+    SendUdpValue("LOG",sensorID1,"longestPress");
+    delay(200);
+  }
+  else if (message=="e.e,,") {
+    SendUdpValue("LOG",sensorID2,"press");
+    delay(200);
+  }
+  else if (message=="e.e,2") {
     SendUdpValue("LOG",sensorID2,"longestPress");
-    delay(100);
+    delay(200);
   }
   //delay(50); //To avoid double message counting due to RF signal redundancy
 }
