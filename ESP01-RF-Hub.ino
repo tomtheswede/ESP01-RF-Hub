@@ -70,7 +70,7 @@ void setup() {
 
 void loop() {
   //If a byte has finished sending, the riseFlag will fire
-  if (riseFlag && riseLen>200 && riseLen<520 && fallLen>530 && fallLen<810) { //high low low - 0
+  if (riseFlag && riseLen>200 && riseLen<700 && fallLen>700 && fallLen<1200) { //high low low - 0
     niblett[0]=niblett[1];
     niblett[1]=niblett[2];
     niblett[2]=niblett[3];
@@ -78,7 +78,7 @@ void loop() {
     riseFlag=false;
     pingCount++;
   }
-  else if (riseFlag && riseLen>530 && riseLen<810 && fallLen>200 && fallLen<520) { //high high low - 1
+  else if (riseFlag && riseLen>700 && riseLen<1200 && fallLen>200 && fallLen<700) { //high high low - 1
     niblett[0]=niblett[1];
     niblett[1]=niblett[2];
     niblett[2]=niblett[3];
@@ -99,7 +99,7 @@ void loop() {
     digitalWrite(indicatorPin,LOW);
   }
 
-  if (niblett[0]==1 && niblett[1]==1 && niblett[2]==1 && niblett[3]==1 && !record) {
+  if (niblett[0]==0 && niblett[1]==1 && niblett[2]==1 && niblett[3]==1 && !record) {
     record=true; //Start recording
     digitalWrite(indicatorPin,HIGH);
     pingCount=0;
@@ -107,13 +107,13 @@ void loop() {
     startTime=millis();
   }
   else if (pingCount==4 && record) {
-    if (niblett[0]==1 && niblett[1]==1 && niblett[2]==0 && (niblett[3]==1 || niblett[3]==0) && addString.length()>0) { //end recording with parity bit
-      if ((highBits)%2) { //only even parity gets printed. Otherwise, in error
+      //if ((highBits)%2) { //only even parity gets printed. Otherwise, in error
+        addString=addString+out[nibNum];
         checkOut(addString);
-      }
-      else {
-        Serial.println("Parity fail");
-      }
+      //}
+      //else {
+      //  Serial.println("Parity fail");
+      //}
       addString="";
       record=false; //End recording
       digitalWrite(indicatorPin,LOW);
@@ -184,6 +184,14 @@ void checkOut(String message) {
   }
   else if (message=="1,1,5,4") {
     SendUdpValue("LOG",sensorID3,"longestPress");
+  }
+  else if (message=="p6931") {
+    SendUdpValue("LOG",sensorID1,"press");
+    delay(100);
+  }
+  else if (message=="p6933") {
+    SendUdpValue("LOG",sensorID2,"longestPress");
+    delay(100);
   }
   //delay(50); //To avoid double message counting due to RF signal redundancy
 }
