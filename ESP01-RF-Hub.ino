@@ -8,25 +8,41 @@ const char* sensorID3 = "BUT010"; //Name of sensor
 const char* deviceDescription1 = "RadioButton1";
 const char* deviceDescription2 = "RadioButton2";
 const char* deviceDescription3 = "RadioButton3";
+const int readPin = 2;
 
-byte niblett[4];
-int nibNum;
+//1 = 690 up then 310 down.
+//0== 245 up then 775 down.
+const long t1=150;
+const long t2=400;
+const long t3=500;
+const long t4=900;
+int bitCount=0;
+byte preamble=0;
+int count=0;
+
+unsigned long devID=0;
+unsigned long msg=0;
+boolean regBit=false;
+unsigned long devIDs[5]={0,0,0,0,0};
+unsigned long msgs[5]={0,0,0,0,0};
+boolean regBits[5]={0,0,0,0,0};
+unsigned int errors[5]={0,0,0,0,0};
+
+unsigned long upTime=0;
+unsigned long downTime=0;
+unsigned int errorCount=0;
+boolean record=false;
+boolean nextBit=0;
+boolean errorFlag=0;
+
 bool riseFlag=false;
 bool fallFlag=false;
 long msRise=0;
 long msFall=0;
-long fallLen=0;
-long riseLen=0;
-long startTime=0;
-int readPin = 2;
-int indicatorPin = 14; //temp for debugging
-int readState=0;
-int pingCount = 0;
-int storeNum = 0;
-String out[16] = {"0","1","2","3","4","5","6","7","8","9",".",",","e","p","f","s"};
-bool record=false;
-int highBits=0;
-String addString="";
+long lastMessageTime=0;
+
+//int indicatorPin = 14; //temp for debugging
+
 
 // WiFi parameters
 const char* ssid = "TheSubway"; //Enter your WiFi network name here in the quotation marks
@@ -60,122 +76,130 @@ void setup() {
   Serial.println(localPort);
 
   delay(2000); //Time clearance to ensure registration
-  pinMode(indicatorPin,OUTPUT);
-  SendUdpValue("REG",sensorID1,String(deviceDescription1)); //Register LED on server
-  SendUdpValue("REG",sensorID2,String(deviceDescription2)); //Register LED on server
-  SendUdpValue("REG",sensorID3,String(deviceDescription3)); //Register LED on server
+  //pinMode(indicatorPin,OUTPUT);
+  //SendUdpValue("REG",sensorID1,String(deviceDescription1)); //Register LED on server
+  //SendUdpValue("REG",sensorID2,String(deviceDescription2)); //Register LED on server
+  //SendUdpValue("REG",sensorID3,String(deviceDescription3)); //Register LED on server
   
   attachInterrupt(digitalPinToInterrupt(readPin),changeInterrupt,CHANGE); //Comment out to remove button functionality
 }
 
 void loop() {
   //If a byte has finished sending, the riseFlag will fire
-  if (riseFlag && riseLen>200 && riseLen<700 && fallLen>700 && fallLen<1200) { //high low low - 0
-    niblett[0]=niblett[1];
-    niblett[1]=niblett[2];
-    niblett[2]=niblett[3];
-    niblett[3]=0;
+  if (riseFlag) {
+    downTime=msRise-msFall;
     riseFlag=false;
-    pingCount++;
   }
-  else if (riseFlag && riseLen>700 && riseLen<1200 && fallLen>200 && fallLen<700) { //high high low - 1
-    niblett[0]=niblett[1];
-    niblett[1]=niblett[2];
-    niblett[2]=niblett[3];
-    niblett[3]=1;
-    highBits=highBits+1; //for parity calculation
-    riseFlag=false;
-    pingCount++;
-  }
-  else if (riseFlag) { //If a signal has a bad bit, start again.
-    riseFlag=false;
-    pingCount=0;
-    highBits=0;
-    if (addString.length()>0) {
-      checkOut(addString); //For debugging - detecting half-messages
+  if (fallFlag) {
+    upTime=msFall-msRise;
+    if (upTime>t1 && upTime<t2) {
+      nextBit=0;
     }
-    addString="";
-    record=false;
-    digitalWrite(indicatorPin,LOW);
-  }
-
-  if (((niblett[0]==1 && niblett[1]==1 && niblett[2]==1 && niblett[3]==0) || (niblett[0]==0 && niblett[1]==1 && niblett[2]==1 && niblett[3]==1)) && !record) {
-    record=true; //Start recording
-    digitalWrite(indicatorPin,HIGH);
-    pingCount=0;
-    highBits=0;
-    startTime=millis();
-  }
-  else if (pingCount==4 && record) {
-    if (addString.length()==6) { //end recording with parity bit
-      //if ((highBits)%2) { //only even parity gets printed. Otherwise, in error
-        //addString=addString+out[nibNum];
-        checkOut(addString);
-      //}
-      //else {
-      //  Serial.println("Parity fail");
-      //}
-      addString="";
-      record=false; //End recording
-      digitalWrite(indicatorPin,LOW);
-    }
-    else if (millis()-startTime>200) {
-      addString="";
-      record=false;
-      digitalWrite(indicatorPin,LOW);
+    else if (upTime>t3 && upTime<t4) {
+      nextBit=1;
     }
     else {
-      nibNum=niblett[0]*8+niblett[1]*4+niblett[2]*2+niblett[3];
-      //Serial.println(nibNum);
-      addString=addString+out[nibNum];
+      errorFlag=true;
     }
-    pingCount=0;
+    if (record) {
+      if (errorFlag) {
+        errorCount++;
+        errorFlag=false;
+      }
+      else {
+        if (bitCount<32) {
+          bitWrite(devID,bitCount,nextBit);
+        }
+        else if (bitCount<64) {
+          bitWrite(msg,bitCount,nextBit);
+        }
+        else if (downTime>1800) {
+          checkOut();
+          errorCount=errorCount+1000; //Special flag for bad preable read.
+          record=false;
+        }
+        else {
+          checkOut(); //Go to the ID and msg Checks
+          record=false;
+        }
+      }
+      bitCount++;
+    }
+    if (!record) {
+      if (errorFlag) {
+        preamble=0;
+        errorFlag=false;
+      }
+      else {
+        preamble=preamble<<1; //adds a zero to the byte
+        preamble=preamble+nextBit;
+        if (preamble==253) {
+          regBit=true; //Register flag
+          record=true;
+          bitCount=0;
+          preamble=0;
+        }
+        else if (preamble==252)  {
+          regBit=false; //regular preamble
+          record=true;
+          bitCount=0;
+          preamble=0;
+        }
+      }
+    }
+  fallFlag=false;
   }
 }
 
 void changeInterrupt() { //What happens when the button pin changes value
   if (digitalRead(readPin)) {
     msRise=micros();
-    fallLen=msRise-msFall;
     riseFlag=true;
   }
   else {
     msFall=micros();
-    riseLen=msFall-msRise;
     fallFlag=true;
   }
-  
 }
 
-void checkOut(String message) {
-  Serial.println(message);
+void checkOut() {
+  /*
+  if (micros()-lastMessageTime>80000 && micros()-lastMessageTime<=90000) {
+    Serial.print("Match placeholder");
+  }
+  else if (micros()-lastMessageTime>90000) { //reset
+    devIDs={0,0,0,0,0};
+    count=0;
+  }
+  else {
+    devIDs[count]=devID;
+  }
+  lastMessageTime=micros();
+  for (int k;
+  */
+
+  if (errorCount==0) {
+    Serial.print(regBit);
+    Serial.print("\t");
+    for (int i=0; i<32; i++) {
+      Serial.print(bitRead(devID,i));
+    }
+    Serial.print("\t");
+    for (int i=0; i<32; i++) {
+      Serial.print(bitRead(msg,i));
+    }
+    Serial.print("\t");
+    Serial.println(errorCount);
+  }
+  
+  //delay(50); //To avoid double message counting due to RF signal redundancy
+  devID=0;
+  msg=0;
+  errorCount=0;
+
+  /*
   if (message=="1,1,3,1") {
     SendUdpValue("LOG",sensorID1,"press");
-  }
-  else if (message=="1,1,3,2") {
-    SendUdpValue("LOG",sensorID1,"longPress");
-  }
-  else if (message=="1,1,3,3") {
-    SendUdpValue("LOG",sensorID1,"longerPress");
-  }
-  else if (message=="1,1,3,4") {
-    SendUdpValue("LOG",sensorID1,"longestPress");
-  }
-  else if (message=="1,1,4,1") {
-    SendUdpValue("LOG",sensorID2,"press");
-  }
-  else if (message=="1,1,4,2") {
-    SendUdpValue("LOG",sensorID2,"longPress");
-  }
-  else if (message=="1,1,4,3") {
-    SendUdpValue("LOG",sensorID2,"longerPress");
-  }
-  else if (message=="1,1,4,4") {
-    SendUdpValue("LOG",sensorID2,"longestPress");
-  }
-  else if (message=="1,1,5,1") {
-    //SendUdpValue("LOG",sensorID3,"press");
-    Serial.println("Success");
   }
   else if (message=="1,1,5,2") {
     SendUdpValue("LOG",sensorID3,"longPress");
@@ -202,7 +226,9 @@ void checkOut(String message) {
     SendUdpValue("LOG",sensorID2,"longestPress");
     delay(200);
   }
-  //delay(50); //To avoid double message counting due to RF signal redundancy
+  */
+  
+  
 }
 
 void SendUdpValue(String type, String sensorID, String value) {
