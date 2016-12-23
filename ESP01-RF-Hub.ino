@@ -12,13 +12,14 @@ const int readPin = 2;
 
 //1 = 690 up then 310 down.
 //0== 245 up then 775 down.
-const long t1=150;
-const long t2=400;
-const long t3=500;
-const long t4=900;
+const long t1=200;
+const long t2=600;
+const long t3=800;
+const long t4=1300;
 int bitCount=0;
 byte preamble=0;
 int count=0;
+long lastSendTime=millis();
 
 unsigned long devID=0;
 unsigned long msg=0;
@@ -77,9 +78,9 @@ void setup() {
 
   delay(2000); //Time clearance to ensure registration
   //pinMode(indicatorPin,OUTPUT);
-  //SendUdpValue("REG",sensorID1,String(deviceDescription1)); //Register LED on server
-  //SendUdpValue("REG",sensorID2,String(deviceDescription2)); //Register LED on server
-  //SendUdpValue("REG",sensorID3,String(deviceDescription3)); //Register LED on server
+  SendUdpValue("REG",sensorID1,String(deviceDescription1)); //Register LED on server
+  SendUdpValue("REG",sensorID2,String(deviceDescription2)); //Register LED on server
+  SendUdpValue("REG",sensorID3,String(deviceDescription3)); //Register LED on server
   
   attachInterrupt(digitalPinToInterrupt(readPin),changeInterrupt,CHANGE); //Comment out to remove button functionality
 }
@@ -107,10 +108,10 @@ void loop() {
         errorFlag=false;
       }
       else {
-        if (bitCount<32) {
+        if (bitCount<18) {
           bitWrite(devID,bitCount,nextBit);
         }
-        else if (bitCount<64) {
+        else if (bitCount<18) {
           bitWrite(msg,bitCount,nextBit);
         }
         else if (downTime>1800) {
@@ -133,13 +134,13 @@ void loop() {
       else {
         preamble=preamble<<1; //adds a zero to the byte
         preamble=preamble+nextBit;
-        if (preamble==253) {
+        if (preamble==236) {
           regBit=true; //Register flag
           record=true;
           bitCount=0;
           preamble=0;
         }
-        else if (preamble==252)  {
+        else if (preamble==125)  { // 01111101
           regBit=false; //regular preamble
           record=true;
           bitCount=0;
@@ -163,35 +164,37 @@ void changeInterrupt() { //What happens when the button pin changes value
 }
 
 void checkOut() {
-  /*
-  if (micros()-lastMessageTime>80000 && micros()-lastMessageTime<=90000) {
-    Serial.print("Match placeholder");
-  }
-  else if (micros()-lastMessageTime>90000) { //reset
-    devIDs={0,0,0,0,0};
-    count=0;
-  }
-  else {
-    devIDs[count]=devID;
-  }
-  lastMessageTime=micros();
-  for (int k;
-  */
 
-  if (errorCount==0) {
-    Serial.print(regBit);
-    Serial.print("\t");
-    for (int i=0; i<32; i++) {
-      Serial.print(bitRead(devID,i));
-    }
-    Serial.print("\t");
-    for (int i=0; i<32; i++) {
-      Serial.print(bitRead(msg,i));
-    }
-    Serial.print("\t");
-    Serial.println(errorCount);
+  if (devID==167221 && (millis()-lastSendTime>800)) {  //  10101100101100010100000000000000
+    SendUdpValue("LOG",sensorID1,"press");
+    lastSendTime=millis();
   }
-  
+  if (devID==150837 && (millis()-lastSendTime>800)) {  //   01101001001100010000000000000000
+    SendUdpValue("LOG",sensorID1,"longPress");
+    lastSendTime=millis();
+  }
+  if (devID==35990 && (millis()-lastSendTime>800)) {  //  10101100101100010100000000000000
+    SendUdpValue("LOG",sensorID2,"press");
+    lastSendTime=millis();
+  }
+  if (devID==19606 && (millis()-lastSendTime>800)) {  //   01101001001100010000000000000000
+    SendUdpValue("LOG",sensorID2,"longPress");
+    lastSendTime=millis();
+  }
+
+/*
+  Serial.print(regBit);
+  Serial.print("\t");
+  for (int i=0; i<32; i++) {
+    Serial.print(bitRead(devID,i));
+  }
+  Serial.print("\t");
+  for (int i=0; i<32; i++) {
+    Serial.print(bitRead(msg,i));
+  }
+  Serial.print("\t");
+  Serial.println(errorCount);
+*/
   //delay(50); //To avoid double message counting due to RF signal redundancy
   devID=0;
   msg=0;
